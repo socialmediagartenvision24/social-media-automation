@@ -1,0 +1,95 @@
+services:
+
+  # ==========================================================
+  # Backend API
+  # ==========================================================
+
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+
+    container_name: social-media-backend
+
+    env_file:
+      - .env
+
+    ports:
+      - "8000:8000"
+
+    restart: unless-stopped
+
+    volumes:
+      - ./backend:/app/backend
+
+    networks:
+      - social-media-network
+
+  # ==========================================================
+  # Publishing Worker
+  # ==========================================================
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/worker.Dockerfile
+
+    container_name: social-media-worker
+
+    env_file:
+      - .env
+
+    restart: unless-stopped
+
+    volumes:
+      - ./worker:/app/worker
+      - ./backend:/app/backend
+
+    networks:
+      - social-media-network
+
+    depends_on:
+      - backend
+
+  # ==========================================================
+  # Frontend Dashboard
+  # ==========================================================
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend.Dockerfile
+
+    container_name: social-media-frontend
+
+    env_file:
+      - .env
+
+    ports:
+      - "3000:3000"
+
+    restart: unless-stopped
+
+    volumes:
+      - ./frontend:/app
+
+      # Prevent local node_modules from being overwritten
+      - /app/node_modules
+
+      # Prevent Next.js build files from being overwritten
+      - /app/.next
+
+    networks:
+      - social-media-network
+
+    depends_on:
+      - backend
+
+
+# ============================================================
+# Network
+# ============================================================
+
+networks:
+  social-media-network:
+    driver: bridge
