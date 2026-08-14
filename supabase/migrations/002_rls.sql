@@ -6,10 +6,15 @@
 --
 -- SECURITY MODEL
 --
--- 1. Normal users can only access their own data.
--- 2. OAuth credentials are NEVER readable by authenticated users.
+-- 1. Authenticated users can only access their own application data.
+-- 2. Anonymous users have no access to application tables.
 -- 3. Publishing workers use the Supabase service role server-side.
--- 4. Service-role credentials must NEVER reach the frontend.
+-- 4. Service-role credentials never reach the frontend.
+--
+-- IMPORTANT:
+-- OAuth tokens stored in social_accounts are backend-only data.
+-- The frontend should access social-account information through the
+-- application's backend/API rather than reading credential columns directly.
 --
 -- ============================================================================
 
@@ -127,44 +132,6 @@ to authenticated
 using (
     user_id = auth.uid()
 );
-
-
--- ============================================================================
--- SOCIAL ACCOUNT TOKEN PROTECTION
--- ============================================================================
---
--- RLS protects ROWS.
---
--- OAuth credentials require COLUMN protection as well.
---
--- The frontend must never be able to SELECT:
---
---   access_token
---   refresh_token
---   token_expires_at
---   refresh_token_expires_at
---
--- The backend/service-role can still access these values.
---
--- ============================================================================
-
-revoke select (
-    access_token,
-    refresh_token,
-    token_expires_at,
-    refresh_token_expires_at
-)
-on public.social_accounts
-from anon;
-
-revoke select (
-    access_token,
-    refresh_token,
-    token_expires_at,
-    refresh_token_expires_at
-)
-on public.social_accounts
-from authenticated;
 
 
 -- ============================================================================
@@ -293,7 +260,7 @@ using (
         select 1
         from public.campaigns c
         where c.id = campaign_accounts.campaign_id
-          and c.user_id = auth.uid()
+        and c.user_id = auth.uid()
     )
 );
 
@@ -310,13 +277,13 @@ with check (
         select 1
         from public.campaigns c
         where c.id = campaign_accounts.campaign_id
-          and c.user_id = auth.uid()
+        and c.user_id = auth.uid()
     )
     and exists (
         select 1
         from public.social_accounts a
         where a.id = campaign_accounts.account_id
-          and a.user_id = auth.uid()
+        and a.user_id = auth.uid()
     )
 );
 
@@ -333,7 +300,7 @@ using (
         select 1
         from public.campaigns c
         where c.id = campaign_accounts.campaign_id
-          and c.user_id = auth.uid()
+        and c.user_id = auth.uid()
     )
 )
 with check (
@@ -341,13 +308,13 @@ with check (
         select 1
         from public.campaigns c
         where c.id = campaign_accounts.campaign_id
-          and c.user_id = auth.uid()
+        and c.user_id = auth.uid()
     )
     and exists (
         select 1
         from public.social_accounts a
         where a.id = campaign_accounts.account_id
-          and a.user_id = auth.uid()
+        and a.user_id = auth.uid()
     )
 );
 
@@ -364,7 +331,7 @@ using (
         select 1
         from public.campaigns c
         where c.id = campaign_accounts.campaign_id
-          and c.user_id = auth.uid()
+        and c.user_id = auth.uid()
     )
 );
 
@@ -385,7 +352,7 @@ using (
         select 1
         from public.campaigns c
         where c.id = campaign_videos.campaign_id
-          and c.user_id = auth.uid()
+        and c.user_id = auth.uid()
     )
 );
 
@@ -402,13 +369,13 @@ with check (
         select 1
         from public.campaigns c
         where c.id = campaign_videos.campaign_id
-          and c.user_id = auth.uid()
+        and c.user_id = auth.uid()
     )
     and exists (
         select 1
         from public.videos v
         where v.id = campaign_videos.video_id
-          and v.user_id = auth.uid()
+        and v.user_id = auth.uid()
     )
 );
 
@@ -425,7 +392,7 @@ using (
         select 1
         from public.campaigns c
         where c.id = campaign_videos.campaign_id
-          and c.user_id = auth.uid()
+        and c.user_id = auth.uid()
     )
 )
 with check (
@@ -433,13 +400,13 @@ with check (
         select 1
         from public.campaigns c
         where c.id = campaign_videos.campaign_id
-          and c.user_id = auth.uid()
+        and c.user_id = auth.uid()
     )
     and exists (
         select 1
         from public.videos v
         where v.id = campaign_videos.video_id
-          and v.user_id = auth.uid()
+        and v.user_id = auth.uid()
     )
 );
 
@@ -456,7 +423,7 @@ using (
         select 1
         from public.campaigns c
         where c.id = campaign_videos.campaign_id
-          and c.user_id = auth.uid()
+        and c.user_id = auth.uid()
     )
 );
 
@@ -520,10 +487,8 @@ using (
 -- PUBLISHING JOBS
 -- ============================================================================
 --
--- Users can see jobs belonging to their own posts.
---
--- Creation/update/deletion is primarily a backend responsibility.
--- This prevents users from manipulating the publishing worker directly.
+-- Jobs are created and processed by the backend worker.
+-- Authenticated dashboard users may only read their own jobs.
 --
 -- ============================================================================
 
@@ -539,18 +504,13 @@ using (
         select 1
         from public.posts p
         where p.id = publishing_jobs.post_id
-          and p.user_id = auth.uid()
+        and p.user_id = auth.uid()
     )
 );
 
 
 -- ============================================================================
 -- ANALYTICS
--- ============================================================================
---
--- Analytics are generated by the backend/platform integrations.
--- Users only need read access.
---
 -- ============================================================================
 
 drop policy if exists "analytics_select_own"
@@ -568,11 +528,6 @@ using (
 -- ============================================================================
 -- LOGS
 -- ============================================================================
---
--- Logs are generated by the backend.
--- Users can only read their own logs.
---
--- ============================================================================
 
 drop policy if exists "logs_select_own"
 on public.logs;
@@ -588,11 +543,6 @@ using (
 
 -- ============================================================================
 -- NOTIFICATIONS
--- ============================================================================
---
--- Notifications are generated by the backend.
--- Users can read/update/delete their own notifications.
---
 -- ============================================================================
 
 drop policy if exists "notifications_select_own"
@@ -636,10 +586,6 @@ using (
 
 -- ============================================================================
 -- ANONYMOUS ACCESS
--- ============================================================================
---
--- No application data is intentionally exposed to anonymous users.
---
 -- ============================================================================
 
 revoke all
@@ -688,14 +634,14 @@ from anon;
 
 
 -- ============================================================================
--- SERVICE ROLE
+-- SERVICE ROLE NOTE
 -- ============================================================================
 --
--- Supabase's service_role bypasses RLS.
+-- The Supabase service_role bypasses RLS.
 --
--- It is used ONLY by the trusted backend/worker.
+-- It is used only by trusted server-side code.
 --
--- NEVER expose the service-role key to:
+-- NEVER expose the service-role key through:
 --
 --   - Next.js client code
 --   - browser JavaScript
@@ -704,9 +650,4 @@ from anon;
 --   - public Docker images
 --   - API responses
 --
--- ============================================================================
-
-
--- ============================================================================
--- END
 -- ============================================================================
