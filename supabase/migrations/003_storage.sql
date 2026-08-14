@@ -9,24 +9,25 @@
 -- ============================================================================
 
 insert into storage.buckets (
-  id,
-  name,
-  public
+    id,
+    name,
+    public
 )
 values (
-  'videos',
-  'videos',
-  false
+    'videos',
+    'videos',
+    false
 )
 on conflict (id)
 do update set
-  public = false;
+    public = false;
+
 
 -- ============================================================================
 -- STORAGE POLICIES
 -- ============================================================================
 --
--- Dateien werden nach diesem Schema gespeichert:
+-- Files:
 --
 -- videos/
 --   USER_ID/
@@ -34,7 +35,7 @@ do update set
 --       original.mp4
 --       thumbnail.jpg
 --
--- Dadurch kann jeder User nur seinen eigenen Ordner verwalten.
+-- Users can only access files inside their own USER_ID directory.
 -- ============================================================================
 
 
@@ -50,10 +51,8 @@ on storage.objects
 for select
 to authenticated
 using (
-  bucket_id = 'videos'
-  and (
-    (storage.foldername(name))[1] = auth.uid()::text
-  )
+    bucket_id = 'videos'
+    and (storage.foldername(name))[1] = auth.uid()::text
 );
 
 
@@ -69,10 +68,8 @@ on storage.objects
 for insert
 to authenticated
 with check (
-  bucket_id = 'videos'
-  and (
-    (storage.foldername(name))[1] = auth.uid()::text
-  )
+    bucket_id = 'videos'
+    and (storage.foldername(name))[1] = auth.uid()::text
 );
 
 
@@ -88,16 +85,12 @@ on storage.objects
 for update
 to authenticated
 using (
-  bucket_id = 'videos'
-  and (
-    (storage.foldername(name))[1] = auth.uid()::text
-  )
+    bucket_id = 'videos'
+    and (storage.foldername(name))[1] = auth.uid()::text
 )
 with check (
-  bucket_id = 'videos'
-  and (
-    (storage.foldername(name))[1] = auth.uid()::text
-  )
+    bucket_id = 'videos'
+    and (storage.foldername(name))[1] = auth.uid()::text
 );
 
 
@@ -113,33 +106,20 @@ on storage.objects
 for delete
 to authenticated
 using (
-  bucket_id = 'videos'
-  and (
-    (storage.foldername(name))[1] = auth.uid()::text
-  )
+    bucket_id = 'videos'
+    and (storage.foldername(name))[1] = auth.uid()::text
 );
 
 
 -- ============================================================================
--- THUMBNAIL SUPPORT
+-- ANONYMOUS STORAGE ACCESS
 -- ============================================================================
---
--- Thumbnails liegen ebenfalls im videos Bucket:
---
--- videos/
---   USER_ID/
---     VIDEO_ID/
---       original.mp4
---       thumbnail.jpg
---
--- Der Worker kann später Thumbnails erzeugen und serverseitig hochladen.
--- ============================================================================
+
+revoke all
+on storage.objects
+from anon;
 
 
 -- ============================================================================
--- STORAGE METADATA INDEX
+-- END
 -- ============================================================================
-
-create index if not exists storage_objects_videos_bucket_name_idx
-on storage.objects(bucket_id, name)
-where bucket_id = 'videos';
